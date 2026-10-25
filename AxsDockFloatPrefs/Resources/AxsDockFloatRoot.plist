@@ -19,41 +19,42 @@
         <dict>
             <key>cell</key><string>PSGroupCell</string>
             <key>label</key><string>动效</string>
+            <key>footerText</key><string>模式互斥：点亮任意一项即切换，无需重启桌面。</string>
         </dict>
         <dict>
-            <key>cell</key><string>PSRadioCell</string>
+            <key>cell</key><string>PSSwitchCell</string>
             <key>label</key><string>浮动</string>
-            <key>key</key><string>mode</string>
+            <key>key</key><string>mode_float</string>
             <key>defaults</key><string>com.axs.dockfloat</string>
-            <key>value</key><integer>0</integer>
+            <key>default</key><false/>
         </dict>
         <dict>
-            <key>cell</key><string>PSRadioCell</string>
+            <key>cell</key><string>PSSwitchCell</string>
             <key>label</key><string>翻滚</string>
-            <key>key</key><string>mode</string>
+            <key>key</key><string>mode_roll</string>
             <key>defaults</key><string>com.axs.dockfloat</string>
-            <key>value</key><integer>1</integer>
+            <key>default</key><false/>
         </dict>
         <dict>
-            <key>cell</key><string>PSRadioCell</string>
+            <key>cell</key><string>PSSwitchCell</string>
             <key>label</key><string>抖动</string>
-            <key>key</key><string>mode</string>
+            <key>key</key><string>mode_shake</string>
             <key>defaults</key><string>com.axs.dockfloat</string>
-            <key>value</key><integer>2</integer>
+            <key>default</key><false/>
         </dict>
         <dict>
-            <key>cell</key><string>PSRadioCell</string>
+            <key>cell</key><string>PSSwitchCell</string>
             <key>label</key><string>随机抖动</string>
-            <key>key</key><string>mode</string>
+            <key>key</key><string>mode_random</string>
             <key>defaults</key><string>com.axs.dockfloat</string>
-            <key>value</key><integer>3</integer>
+            <key>default</key><false/>
         </dict>
         <dict>
-            <key>cell</key><string>PSRadioCell</string>
+            <key>cell</key><string>PSSwitchCell</string>
             <key>label</key><string>鱼缸游鱼</string>
-            <key>key</key><string>mode</string>
+            <key>key</key><string>mode_fish</string>
             <key>defaults</key><string>com.axs.dockfloat</string>
-            <key>value</key><integer>4</integer>
+            <key>default</key><false/>
         </dict>
         <dict>
             <key>cell</key><string>PSTitleValueCell</string>
