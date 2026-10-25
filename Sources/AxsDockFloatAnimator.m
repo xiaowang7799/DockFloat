@@ -67,15 +67,19 @@ static void axs_dockfloat_collectIconListViewClasses(UIView *view, NSMutableSet 
 }
 
 - (void)axs_dockfloat_applyFromConfig {
-    if (![[AxsDockFloatConfig axs_dockfloat_shared] axs_dockfloat_isEnabled]) {
-        [self axs_dockfloat_stop];
-        return;
-    }
-    [[NSNotificationCenter defaultCenter] removeObserver:self];
+    // Register before the enabled check: toggling the switch on must take effect
+    // without a respring, so the animator has to already be listening while off.
+    [[NSNotificationCenter defaultCenter] removeObserver:self
+                                                    name:AxsDockFloatPreferencesChanged
+                                                  object:nil];
     [[NSNotificationCenter defaultCenter] addObserver:self
                                              selector:@selector(axs_dockfloat_handlePreferencesChanged:)
                                                  name:AxsDockFloatPreferencesChanged
                                                object:nil];
+    if (![[AxsDockFloatConfig axs_dockfloat_shared] axs_dockfloat_isEnabled]) {
+        [self axs_dockfloat_stop];
+        return;
+    }
     [self axs_dockfloat_startLinkIfNeeded];
 }
 
