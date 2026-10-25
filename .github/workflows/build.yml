@@ -85,6 +85,15 @@ jobs:
           echo "=== .deb files ==="
           find ./packages -name "*.deb" -type f
 
+      - name: Rename Package By Variant
+        run: |
+          shopt -s nullglob
+          for f in ./packages/*.deb; do
+            base="$(basename "$f" .deb)"
+            mv "$f" "./packages/${base}-${{ matrix.build_variant }}.deb"
+          done
+          find ./packages -name "*.deb" -type f
+
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
