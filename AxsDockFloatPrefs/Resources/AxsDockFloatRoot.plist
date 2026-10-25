@@ -21,28 +21,39 @@
             <key>label</key><string>动效</string>
         </dict>
         <dict>
-            <key>cell</key><string>PSLinkCell</string>
-            <key>detail</key><string>PSListItemsController</string>
-            <key>label</key><string>动画模式</string>
+            <key>cell</key><string>PSRadioCell</string>
+            <key>label</key><string>浮动</string>
             <key>key</key><string>mode</string>
             <key>defaults</key><string>com.axs.dockfloat</string>
-            <key>default</key><integer>0</integer>
-            <key>validTitles</key>
-            <array>
-                <string>浮动</string>
-                <string>翻滚</string>
-                <string>抖动</string>
-                <string>随机抖动</string>
-                <string>鱼缸游鱼</string>
-            </array>
-            <key>validValues</key>
-            <array>
-                <integer>0</integer>
-                <integer>1</integer>
-                <integer>2</integer>
-                <integer>3</integer>
-                <integer>4</integer>
-            </array>
+            <key>value</key><integer>0</integer>
+        </dict>
+        <dict>
+            <key>cell</key><string>PSRadioCell</string>
+            <key>label</key><string>翻滚</string>
+            <key>key</key><string>mode</string>
+            <key>defaults</key><string>com.axs.dockfloat</string>
+            <key>value</key><integer>1</integer>
+        </dict>
+        <dict>
+            <key>cell</key><string>PSRadioCell</string>
+            <key>label</key><string>抖动</string>
+            <key>key</key><string>mode</string>
+            <key>defaults</key><string>com.axs.dockfloat</string>
+            <key>value</key><integer>2</integer>
+        </dict>
+        <dict>
+            <key>cell</key><string>PSRadioCell</string>
+            <key>label</key><string>随机抖动</string>
+            <key>key</key><string>mode</string>
+            <key>defaults</key><string>com.axs.dockfloat</string>
+            <key>value</key><integer>3</integer>
+        </dict>
+        <dict>
+            <key>cell</key><string>PSRadioCell</string>
+            <key>label</key><string>鱼缸游鱼</string>
+            <key>key</key><string>mode</string>
+            <key>defaults</key><string>com.axs.dockfloat</string>
+            <key>value</key><integer>4</integer>
         </dict>
         <dict>
             <key>cell</key><string>PSTitleValueCell</string>
