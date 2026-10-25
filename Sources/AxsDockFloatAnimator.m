@@ -1,6 +1,8 @@
 #import "AxsDockFloatAnimator.h"
 #import "AxsDockFloatConfig.h"
 #import "AxsDockFloatPreferences.h"
+#import <QuartzCore/QuartzCore.h>
+#include <math.h>
 
 // Dock discovery uses a naming-convention rule (class name ends with "IconListView"
 // and contains "Dock") instead of hardcoded private classes, so unknown iOS layouts
@@ -103,8 +105,15 @@ static void axs_dockfloat_collectDockViews(UIView *view, NSMutableArray *out) {
     }
     self.lastSearchTime = now;
     NSMutableArray *found = [NSMutableArray array];
-    for (UIWindow *window in [UIApplication sharedApplication].windows) {
-        axs_dockfloat_collectDockViews(window, found);
+    // UIWindowScene.windows (iOS 13+) instead of the deprecated UIApplication.windows,
+    // which -Werror rejects on the iOS 15+ SDK used by the build.
+    for (UIScene *scene in [UIApplication sharedApplication].connectedScenes) {
+        if (![scene isKindOfClass:[UIWindowScene class]]) {
+            continue;
+        }
+        for (UIWindow *window in ((UIWindowScene *)scene).windows) {
+            axs_dockfloat_collectDockViews(window, found);
+        }
     }
     self.dockViews = found;
 }

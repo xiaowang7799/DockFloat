@@ -1,5 +1,6 @@
 #import "AxsDockFloatConfig.h"
 #import "AxsDockFloatPreferences.h"
+#include <math.h>
 
 @interface AxsDockFloatConfig ()
 @property (atomic, copy) NSDictionary *snapshot;
