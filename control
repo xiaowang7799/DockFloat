@@ -1,0 +1,11 @@
+Package: com.axs.dockfloat
+Name: Dock浮动
+Version: 5.2.0
+Architecture: iphoneos-arm
+Description: Dock 动效美化：浮动/翻滚/抖动
+Maintainer: Axs
+Author: Axs
+Section: Axs-Tweaks
+Depends: mobilesubstrate, preferenceloader
+Icon: https://axs66.github.io/pro/icon/dockfloat.png
+Sileodepiction: https://axs66.github.io/pro/sileodepiction/dockfloat/js.json

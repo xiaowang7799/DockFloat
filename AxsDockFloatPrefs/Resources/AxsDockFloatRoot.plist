@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>title</key><string>Dock浮动</string>
+    <key>items</key>
+    <array>
+        <dict>
+            <key>cell</key><string>PSGroupCell</string>
+            <key>label</key><string>基本设置</string>
+        </dict>
+        <dict>
+            <key>cell</key><string>PSSwitchCell</string>
+            <key>label</key><string>启用插件</string>
+            <key>key</key><string>enabled</string>
+            <key>defaults</key><string>com.axs.dockfloat</string>
+            <key>default</key><false/>
+        </dict>
+        <dict>
+            <key>cell</key><string>PSGroupCell</string>
+            <key>label</key><string>动效</string>
+        </dict>
+        <dict>
+            <key>cell</key><string>PSegmentCell</string>
+            <key>label</key><string>动画模式</string>
+            <key>key</key><string>mode</string>
+            <key>defaults</key><string>com.axs.dockfloat</string>
+            <key>default</key><integer>0</integer>
+            <key>values</key>
+            <array>
+                <integer>0</integer>
+                <integer>1</integer>
+                <integer>2</integer>
+            </array>
+            <key>titles</key>
+            <array>
+                <string>浮动</string>
+                <string>翻滚</string>
+                <string>抖动</string>
+            </array>
+        </dict>
+        <dict>
+            <key>cell</key><string>PSTitleValueCell</string>
+            <key>cellClass</key><string>AxsDockFloatSliderCell</string>
+            <key>label</key><string>幅度</string>
+            <key>key</key><string>amplitude</string>
+            <key>defaults</key><string>com.axs.dockfloat</string>
+            <key>default</key><real>1.0</real>
+            <key>min</key><real>0.2</real>
+            <key>max</key><real>3.0</real>
+        </dict>
+        <dict>
+            <key>cell</key><string>PSTitleValueCell</string>
+            <key>cellClass</key><string>AxsDockFloatSliderCell</string>
+            <key>label</key><string>周期(秒)</string>
+            <key>key</key><string>period</string>
+            <key>defaults</key><string>com.axs.dockfloat</string>
+            <key>default</key><real>2.0</real>
+            <key>min</key><real>0.5</real>
+            <key>max</key><real>6.0</real>
+        </dict>
+    </array>
+</dict>
+</plist>
