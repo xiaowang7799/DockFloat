@@ -5,13 +5,13 @@
 #include <math.h>
 
 // Dock discovery uses a naming-convention rule (class name ends with "IconListView"
-// and contains "Dock") instead of hardcoded private classes, so unknown iOS layouts
-// simply match nothing and the plugin stays inert. The root home-screen icon grid
-// (SBRootIconListView...) is deliberately NOT matched: this plugin only animates
-// the dock.
+// and contains "Dock" or "Tray") instead of hardcoded private classes, so unknown
+// iOS layouts simply match nothing and the plugin stays inert. The root home-screen
+// icon grid (SBRootIconListView...) is deliberately NOT matched.
 static BOOL axs_dockfloat_isDockListView(UIView *view) {
     NSString *className = NSStringFromClass([view class]);
-    return [className hasSuffix:@"IconListView"] && [className containsString:@"Dock"];
+    return [className hasSuffix:@"IconListView"]
+        && ([className containsString:@"Dock"] || [className containsString:@"Tray"]);
 }
 
 static void axs_dockfloat_collectDockViews(UIView *view, NSMutableArray *out) {
@@ -21,6 +21,19 @@ static void axs_dockfloat_collectDockViews(UIView *view, NSMutableArray *out) {
     }
     for (UIView *child in view.subviews) {
         axs_dockfloat_collectDockViews(child, out);
+    }
+}
+
+// Diagnostics only: record every *IconListView class actually present so a
+// "nothing happens" report can identify the real dock class on new iOS versions.
+static void axs_dockfloat_collectIconListViewClasses(UIView *view, NSMutableSet *out) {
+    NSString *className = NSStringFromClass([view class]);
+    if ([className containsString:@"IconListView"]) {
+        [out addObject:className];
+        return;
+    }
+    for (UIView *child in view.subviews) {
+        axs_dockfloat_collectIconListViewClasses(child, out);
     }
 }
 
@@ -114,6 +127,18 @@ static void axs_dockfloat_collectDockViews(UIView *view, NSMutableArray *out) {
         for (UIWindow *window in ((UIWindowScene *)scene).windows) {
             axs_dockfloat_collectDockViews(window, found);
         }
+    }
+    if (found.count == 0) {
+        NSMutableSet *classes = [NSMutableSet set];
+        for (UIWindow *window in [UIApplication sharedApplication].connectedScenes) {
+            if (![window isKindOfClass:[UIWindowScene class]]) {
+                continue;
+            }
+            for (UIWindow *w in ((UIWindowScene *)window).windows) {
+                axs_dockfloat_collectIconListViewClasses(w, classes);
+            }
+        }
+        NSLog(@"[DockFloat] no dock matched; icon list classes present: %@", classes);
     }
     self.dockViews = found;
 }
