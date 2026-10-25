@@ -1,0 +1,5 @@
+# Keep every text file LF: build.sh must stay LF or CI shell execution fails
+* text=auto eol=lf
+
+# Binary assets
+*.png binary
