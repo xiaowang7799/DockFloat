@@ -249,9 +249,14 @@ static void axs_dockfloat_collectIconListViewClasses(UIView *view, NSMutableSet 
         double dy = ((double)arc4random() / (double)UINT32_MAX - 0.5) * 2.0 * reach * 0.6;
         self.randomTarget = CGPointMake(dx, dy);
     }
-    CGFloat dt = (CGFloat)duration;
-    self.randomOffset.x += (self.randomTarget.x - self.randomOffset.x) * MIN(1.0, dt * 12.0);
-    self.randomOffset.y += (self.randomTarget.y - self.randomOffset.y) * MIN(1.0, dt * 12.0);
+    // CGPoint members returned by a property getter are rvalues: mutate a local
+    // copy and write the whole struct back.
+    CGFloat k = MIN(1.0, (CGFloat)duration * 12.0);
+    CGPoint offset = self.randomOffset;
+    CGPoint target = self.randomTarget;
+    offset.x += (target.x - offset.x) * k;
+    offset.y += (target.y - offset.y) * k;
+    self.randomOffset = offset;
 }
 
 // One fish per dock; views are plain subviews so taps still reach the icons below.
