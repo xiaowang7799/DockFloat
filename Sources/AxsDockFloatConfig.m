@@ -64,7 +64,7 @@ static void axs_dockfloat_preferencesDidChange(CFNotificationCenterRef center, v
         return AxsDockFloatModeFloat;
     }
     NSInteger mode = [value integerValue];
-    return (mode >= AxsDockFloatModeFloat && mode <= AxsDockFloatModeShake)
+    return (mode >= AxsDockFloatModeFloat && mode <= AxsDockFloatModeFish)
         ? (AxsDockFloatMode)mode : AxsDockFloatModeFloat;
 }
 

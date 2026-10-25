@@ -6,6 +6,8 @@ typedef NS_ENUM(NSInteger, AxsDockFloatMode) {
     AxsDockFloatModeFloat = 0,
     AxsDockFloatModeRoll = 1,
     AxsDockFloatModeShake = 2,
+    AxsDockFloatModeRandom = 3,
+    AxsDockFloatModeFish = 4,
 };
 
 @interface AxsDockFloatConfig : NSObject

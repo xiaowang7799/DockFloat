@@ -31,12 +31,16 @@
                 <integer>0</integer>
                 <integer>1</integer>
                 <integer>2</integer>
+                <integer>3</integer>
+                <integer>4</integer>
             </array>
             <key>titles</key>
             <array>
                 <string>浮动</string>
                 <string>翻滚</string>
                 <string>抖动</string>
+                <string>随机抖动</string>
+                <string>鱼缸游鱼</string>
             </array>
         </dict>
         <dict>
