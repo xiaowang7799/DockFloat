@@ -37,22 +37,47 @@ static void axs_dockfloat_collectIconListViewClasses(UIView *view, NSMutableSet 
     }
 }
 
+// Aquarium species. Glyphs render from the system emoji font on every iOS 14+,
+// no bundled image assets required.
+static NSString * const kAxsDockFloatSpecies[] = {
+    @"🐟", @"🐠", @"🐡", @"🦈", @"🐙", @"🦀", @"🐢", @"🐬",
+};
+static const NSUInteger kAxsDockFloatSpeciesCount =
+    sizeof(kAxsDockFloatSpecies) / sizeof(kAxsDockFloatSpecies[0]);
+
+// Bubble palette, cycled per bubble for a rainbow trail.
+static UIColor *axs_dockfloat_bubbleColor(NSUInteger index) {
+    UIColor *colors[] = {
+        [UIColor colorWithRed:0.40 green:0.75 blue:1.00 alpha:0.85],
+        [UIColor colorWithRed:1.00 green:0.55 blue:0.70 alpha:0.85],
+        [UIColor colorWithRed:0.65 green:0.90 blue:0.55 alpha:0.85],
+        [UIColor colorWithRed:1.00 green:0.82 blue:0.40 alpha:0.85],
+        [UIColor colorWithRed:0.80 green:0.60 blue:1.00 alpha:0.85],
+        [UIColor colorWithRed:0.45 green:0.95 blue:0.90 alpha:0.85],
+    };
+    const NSUInteger count = sizeof(colors) / sizeof(colors[0]);
+    return colors[index % count];
+}
+
 @interface AxsDockFloatAnimator ()
 @property (nonatomic, strong) CADisplayLink *displayLink;
 @property (nonatomic, strong) NSMutableArray<UIView *> *dockViews;
+// Aquarium actors: each fish label plus its own swim/bubble state.
 @property (nonatomic, strong) NSMutableArray<UILabel *> *fishViews;
-@property (nonatomic, assign) AxsDockFloatMode mode;
-@property (nonatomic, assign) BOOL modeTracked;
-@property (nonatomic, assign) CFTimeInterval phase;
-@property (nonatomic, assign) CFTimeInterval lastSearchTime;
+@property (nonatomic, strong) NSMutableArray<NSNumber *> *fishX;
+@property (nonatomic, strong) NSMutableArray<NSNumber *> *fishDirection;
+@property (nonatomic, strong) NSMutableArray<NSNumber *> *fishSpeed;
+@property (nonatomic, strong) NSMutableArray<NSNumber *> *fishPhase;
+@property (nonatomic, strong) NSMutableArray<NSNumber *> *fishLane;
+@property (nonatomic, strong) NSMutableArray<NSNumber *> *fishNextBubble;
+@property (nonatomic, strong) NSMutableArray<NSNumber *> *bubbleCounter;
 // Random-jitter state: a new target is drawn every randomInterval seconds.
 @property (nonatomic, assign) CGPoint randomOffset;
 @property (nonatomic, assign) CGPoint randomTarget;
 @property (nonatomic, assign) CFTimeInterval randomNextRetarget;
 @property (nonatomic, assign) double randomInterval;
-// Per-fish state arrays, index-aligned with fishViews.
-@property (nonatomic, strong) NSMutableArray<NSNumber *> *fishX;
-@property (nonatomic, strong) NSMutableArray<NSNumber *> *fishDirection;
+@property (nonatomic, assign) CFTimeInterval phase;
+@property (nonatomic, assign) CFTimeInterval lastSearchTime;
 @end
 
 @implementation AxsDockFloatAnimator
@@ -73,7 +98,11 @@ static void axs_dockfloat_collectIconListViewClasses(UIView *view, NSMutableSet 
         _fishViews = [NSMutableArray array];
         _fishX = [NSMutableArray array];
         _fishDirection = [NSMutableArray array];
-        _mode = AxsDockFloatModeFloat;
+        _fishSpeed = [NSMutableArray array];
+        _fishPhase = [NSMutableArray array];
+        _fishLane = [NSMutableArray array];
+        _fishNextBubble = [NSMutableArray array];
+        _bubbleCounter = [NSMutableArray array];
     }
     return self;
 }
@@ -92,31 +121,24 @@ static void axs_dockfloat_collectIconListViewClasses(UIView *view, NSMutableSet 
         [self axs_dockfloat_stop];
         return;
     }
-    [self axs_dockfloat_startLinkIfNeeded];
+    if (!self.displayLink) {
+        self.phase = 0;
+        self.lastSearchTime = 0;
+        self.displayLink = [CADisplayLink displayLinkWithTarget:self
+                                                       selector:@selector(axs_dockfloat_tick:)];
+        [self.displayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
+    }
 }
 
 - (void)axs_dockfloat_handlePreferencesChanged:(NSNotification *)note {
     [self axs_dockfloat_applyFromConfig];
 }
 
-- (void)axs_dockfloat_startLinkIfNeeded {
-    if (self.displayLink) {
-        return;
-    }
-    self.phase = 0;
-    self.lastSearchTime = 0;
-    self.modeTracked = NO;
-    self.displayLink = [CADisplayLink displayLinkWithTarget:self
-                                                   selector:@selector(axs_dockfloat_tick:)];
-    [self.displayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
-}
-
 - (void)axs_dockfloat_stop {
     [self.displayLink invalidate];
     self.displayLink = nil;
-    [self axs_dockfloat_resetTransforms];
     self.phase = 0;
-    self.modeTracked = NO;
+    [self axs_dockfloat_releaseAll];
 }
 
 // Search is throttled: rotating the phone or entering the home screen can rebuild
@@ -146,27 +168,34 @@ static void axs_dockfloat_collectIconListViewClasses(UIView *view, NSMutableSet 
     }
     if (found.count == 0) {
         NSMutableSet *classes = [NSMutableSet set];
-        for (UIWindow *window in [UIApplication sharedApplication].connectedScenes) {
-            if (![window isKindOfClass:[UIWindowScene class]]) {
+        for (UIScene *scene in [UIApplication sharedApplication].connectedScenes) {
+            if (![scene isKindOfClass:[UIWindowScene class]]) {
                 continue;
             }
-            for (UIWindow *w in ((UIWindowScene *)window).windows) {
+            for (UIWindow *w in ((UIWindowScene *)scene).windows) {
                 axs_dockfloat_collectIconListViewClasses(w, classes);
             }
         }
         NSLog(@"[DockFloat] no dock matched; icon list classes present: %@", classes);
+    }
+    // Docks were rebuilt: old views are dead, drop fish parented to them.
+    if (found.count != self.dockViews.count) {
+        [self axs_dockfloat_releaseFish];
     }
     self.dockViews = found;
 }
 
 - (void)axs_dockfloat_tick:(CADisplayLink *)link {
     AxsDockFloatConfig *config = [AxsDockFloatConfig axs_dockfloat_shared];
-    AxsDockFloatMode mode = [config axs_dockfloat_mode];
-    if (!self.modeTracked || mode != self.mode) {
-        [self axs_dockfloat_resetTransforms];
-        self.mode = mode;
-        self.modeTracked = YES;
-        self.phase = 0;
+    BOOL floatOn = [config axs_dockfloat_isModeActive:AxsDockFloatModeFloat];
+    BOOL rollOn = [config axs_dockfloat_isModeActive:AxsDockFloatModeRoll];
+    BOOL shakeOn = [config axs_dockfloat_isModeActive:AxsDockFloatModeShake];
+    BOOL randomOn = [config axs_dockfloat_isModeActive:AxsDockFloatModeRandom];
+    BOOL fishOn = [config axs_dockfloat_isModeActive:AxsDockFloatModeFish];
+
+    if (!floatOn && !rollOn && !shakeOn && !randomOn && !fishOn) {
+        [self axs_dockfloat_releaseAll];
+        return;
     }
     [self axs_dockfloat_refreshDocksIfNeededAt:link.timestamp];
     if (self.dockViews.count == 0) {
@@ -176,8 +205,9 @@ static void axs_dockfloat_collectIconListViewClasses(UIView *view, NSMutableSet 
     double amplitude = [config axs_dockfloat_amplitude];
     self.phase += link.duration / period;
     double angle = self.phase * M_PI * 2.0;
+
     // While SpringBoard is animating the dock itself (open/close, page switch),
-    // its transform wins: touching it here would fight the system animation.
+    // its transform wins: touching it this frame would fight the system animation.
     BOOL dockBusy = NO;
     for (UIView *dock in self.dockViews) {
         if (dock.layer.animationKeys.count > 0) {
@@ -185,55 +215,75 @@ static void axs_dockfloat_collectIconListViewClasses(UIView *view, NSMutableSet 
             break;
         }
     }
-    if (dockBusy) {
-        return;
+
+    CGPoint jitter = CGPointZero;
+    if (randomOn) {
+        [self axs_dockfloat_stepRandomWithDuration:link.duration];
+        jitter = self.randomOffset;
+    } else {
+        self.randomOffset = CGPointZero;
+        self.randomTarget = CGPointZero;
+        self.randomInterval = 0;
+        self.randomNextRetarget = 0;
     }
-    switch (mode) {
-        case AxsDockFloatModeFloat: {
-            CGFloat offset = (CGFloat)(-8.0 * amplitude * sin(angle));
-            for (UIView *dock in self.dockViews) {
-                dock.transform = CGAffineTransformMakeTranslation(0, offset);
+
+    if (dockBusy) {
+        [self axs_dockfloat_releaseTransforms];
+    } else {
+        // Whole-dock layer: shake + random jitter compose here.
+        for (UIView *dock in self.dockViews) {
+            CGAffineTransform transform = CGAffineTransformIdentity;
+            if (shakeOn) {
+                CGFloat x = (CGFloat)(4.0 * amplitude * sin(angle * 6.0));
+                CGFloat y = (CGFloat)(2.0 * amplitude * sin(angle * 7.0 + 1.7));
+                CGFloat rotation = (CGFloat)(0.02 * amplitude * sin(angle * 5.0));
+                transform = CGAffineTransformTranslate(transform, x, y);
+                transform = CGAffineTransformRotate(transform, rotation);
             }
-            break;
-        }
-        case AxsDockFloatModeShake: {
-            CGFloat x = (CGFloat)(4.0 * amplitude * sin(angle * 6.0));
-            CGFloat y = (CGFloat)(2.0 * amplitude * sin(angle * 7.0 + 1.7));
-            CGFloat rotation = (CGFloat)(0.02 * amplitude * sin(angle * 5.0));
-            CGAffineTransform transform = CGAffineTransformMakeTranslation(x, y);
-            transform = CGAffineTransformRotate(transform, rotation);
-            for (UIView *dock in self.dockViews) {
-                dock.transform = transform;
+            if (randomOn) {
+                transform = CGAffineTransformTranslate(transform, jitter.x, jitter.y);
             }
-            break;
+            dock.transform = transform;
         }
-        case AxsDockFloatModeRoll: {
-            for (UIView *dock in self.dockViews) {
-                dock.transform = CGAffineTransformIdentity;
-                NSArray<UIView *> *icons = dock.subviews;
-                NSUInteger count = icons.count;
-                for (NSUInteger index = 0; index < count; index++) {
-                    CATransform3D transform = CATransform3DIdentity;
-                    transform.m34 = -1.0 / 600.0;
-                    double staggered = self.phase - (double)index / MAX((NSUInteger)1, count);
-                    transform = CATransform3DRotate(transform, staggered * M_PI * 2.0, 0.0, 1.0, 0.0);
-                    icons[index].layer.transform = transform;
+        // Icon layer: float (uneven, per-icon phase) and roll (staggered 3D) compose.
+        NSUInteger dockIndex = 0;
+        for (UIView *dock in self.dockViews) {
+            NSArray<UIView *> *icons = dock.subviews;
+            NSUInteger count = icons.count;
+            for (NSUInteger index = 0; index < count; index++) {
+                UIView *icon = icons[index];
+                if (!floatOn && !rollOn) {
+                    if (!CATransform3DIsIdentity(icon.layer.transform)) {
+                        icon.layer.transform = CATransform3DIdentity;
+                    }
+                    continue;
                 }
+                CATransform3D layer = CATransform3DIdentity;
+                if (floatOn) {
+                    // Uneven bob: each icon gets its own phase offset so the row
+                    // waves instead of moving as a rigid slab.
+                    CGFloat bob = (CGFloat)(-8.0 * amplitude
+                        * sin(angle + (double)index * 0.9 + (double)dockIndex * 0.45));
+                    layer = CATransform3DTranslate(layer, 0, bob, 0);
+                }
+                if (rollOn) {
+                    CATransform3D roll = CATransform3DIdentity;
+                    roll.m34 = -1.0 / 600.0;
+                    double staggered = self.phase - (double)index / MAX((NSUInteger)1, count);
+                    roll = CATransform3DRotate(roll, staggered * M_PI * 2.0, 0.0, 1.0, 0.0);
+                    layer = CATransform3DConcat(layer, roll);
+                }
+                icon.layer.transform = layer;
             }
-            break;
+            dockIndex++;
         }
-        case AxsDockFloatModeRandom: {
-            [self axs_dockfloat_stepRandomWithDuration:link.duration];
-            for (UIView *dock in self.dockViews) {
-                dock.transform = CGAffineTransformMakeTranslation(self.randomOffset.x, self.randomOffset.y);
-            }
-            break;
-        }
-        case AxsDockFloatModeFish: {
-            [self axs_dockfloat_syncFishCountWithDocks];
-            [self axs_dockfloat_stepFishWithPeriod:period amplitude:amplitude duration:link.duration];
-            break;
-        }
+    }
+
+    if (fishOn) {
+        [self axs_dockfloat_syncFishWithConfig:config];
+        [self axs_dockfloat_stepFishWithPeriod:period amplitude:amplitude duration:link.duration];
+    } else {
+        [self axs_dockfloat_releaseFish];
     }
 }
 
@@ -259,34 +309,46 @@ static void axs_dockfloat_collectIconListViewClasses(UIView *view, NSMutableSet 
     self.randomOffset = offset;
 }
 
-// One fish per dock; views are plain subviews so taps still reach the icons below.
-- (void)axs_dockfloat_syncFishCountWithDocks {
-    while (self.fishViews.count > self.dockViews.count) {
+// The fish-count key applies per dock: N fish swim inside each matched dock view.
+- (void)axs_dockfloat_syncFishWithConfig:(AxsDockFloatConfig *)config {
+    NSUInteger desired = (NSUInteger)[config axs_dockfloat_fishCount] * self.dockViews.count;
+    while (self.fishViews.count > desired) {
         UILabel *extra = self.fishViews.lastObject;
         [extra removeFromSuperview];
         [self.fishViews removeLastObject];
         [self.fishX removeLastObject];
         [self.fishDirection removeLastObject];
+        [self.fishSpeed removeLastObject];
+        [self.fishPhase removeLastObject];
+        [self.fishLane removeLastObject];
+        [self.fishNextBubble removeLastObject];
+        [self.bubbleCounter removeLastObject];
     }
-    while (self.fishViews.count < self.dockViews.count) {
-        UILabel *fish = [[UILabel alloc] initWithFrame:CGRectMake(0, 0, 28, 28)];
-        fish.text = @"🐟";
+    while (self.fishViews.count < desired) {
+        NSUInteger index = self.fishViews.count;
+        UILabel *fish = [[UILabel alloc] initWithFrame:CGRectMake(0, 0, 30, 30)];
+        fish.text = kAxsDockFloatSpecies[index % kAxsDockFloatSpeciesCount];
         fish.textAlignment = NSTextAlignmentCenter;
         fish.font = [UIFont systemFontOfSize:24];
         fish.userInteractionEnabled = NO;
         fish.isAccessibilityElement = NO;
-        [self.dockViews[self.fishViews.count] addSubview:fish];
+        UIView *dock = self.dockViews[index % MAX((NSUInteger)1, self.dockViews.count)];
+        [dock addSubview:fish];
         [self.fishViews addObject:fish];
-        [self.fishX addObject:@(0.0)];
-        [self.fishDirection addObject:@(1.0)];
+        [self.fishX addObject:@(10.0)];
+        [self.fishDirection addObject:@(((double)arc4random() / UINT32_MAX < 0.5) ? -1.0 : 1.0)];
+        [self.fishSpeed addObject:@(0.7 + ((double)arc4random() / UINT32_MAX) * 0.6)];
+        [self.fishPhase addObject:@(((double)arc4random() / UINT32_MAX) * M_PI * 2.0)];
+        // Fixed vertical lane per fish (0..1), spread deterministically.
+        [self.fishLane addObject:@(0.2 + 0.6 * (((double)((index * 41) % 97)) / 97.0))];
+        [self.fishNextBubble addObject:@(0.2 + ((double)arc4random() / UINT32_MAX) * 1.2)];
+        [self.bubbleCounter addObject:@(index)];
     }
-    // The dock can be rebuilt (rotation, home re-layout); re-parent stale fish.
-    NSUInteger count = MIN(self.fishViews.count, self.dockViews.count);
-    for (NSUInteger index = 0; index < count; index++) {
+    // Dock rebuilt (rotation, re-layout): re-parent fish onto the live docks.
+    for (NSUInteger index = 0; index < self.fishViews.count; index++) {
         UILabel *fish = self.fishViews[index];
-        UIView *dock = self.dockViews[index];
+        UIView *dock = self.dockViews[index % MAX((NSUInteger)1, self.dockViews.count)];
         if (fish.superview != dock) {
-            [fish removeFromSuperview];
             [dock addSubview:fish];
         }
     }
@@ -296,17 +358,18 @@ static void axs_dockfloat_collectIconListViewClasses(UIView *view, NSMutableSet 
                                  duration:(CFTimeInterval)duration {
     NSUInteger count = self.fishViews.count;
     for (NSUInteger index = 0; index < count; index++) {
-        UIView *dock = self.dockViews[index];
+        UIView *dock = self.dockViews[index % self.dockViews.count];
         UILabel *fish = self.fishViews[index];
         CGSize bounds = dock.bounds.size;
-        if (bounds.width <= 40.0 || bounds.height <= 24.0) {
+        if (bounds.width <= 40.0 || bounds.height <= 30.0) {
             continue;
         }
         double direction = [self.fishDirection[index] doubleValue];
-        double speed = (bounds.width - 40.0) / MAX(0.5, period) * 0.5;
-        double x = [self.fishX[index] doubleValue] + direction * speed * duration;
+        double speedBias = [self.fishSpeed[index] doubleValue];
         double margin = 8.0;
         double maxX = bounds.width - fish.bounds.size.width - margin;
+        double speed = (bounds.width - 2.0 * margin) / MAX(0.5, period) * speedBias;
+        double x = [self.fishX[index] doubleValue] + direction * speed * duration;
         if (x < margin) {
             x = margin;
             direction = 1.0;
@@ -316,28 +379,92 @@ static void axs_dockfloat_collectIconListViewClasses(UIView *view, NSMutableSet 
         }
         self.fishX[index] = @(x);
         self.fishDirection[index] = @(direction);
-        double bob = (CGFloat)(sin(self.phase * M_PI * 2.0 * 1.5 + index) * 5.0 * amplitude);
-        CGFloat y = (CGFloat)(MAX(margin, (bounds.height - fish.bounds.size.height) / 2.0 + bob));
+
+        double perFishPhase = [self.fishPhase[index] doubleValue];
+        double bob = (CGFloat)(sin(self.phase * M_PI * 2.0 * 1.5 + perFishPhase)
+            * 4.0 * fmin(3.0, amplitude));
+        CGFloat lane = (CGFloat)([self.fishLane[index] doubleValue]
+            * (bounds.height - fish.bounds.size.height - 2.0 * margin) + margin);
+        CGFloat y = (CGFloat)fmax(margin, fmin(bounds.height - fish.bounds.size.height - margin,
+            lane + bob));
         fish.frame = CGRectMake((CGFloat)x, y, fish.bounds.size.width, fish.bounds.size.height);
-        // The glyph faces left; mirror it when swimming right.
+        // Most glyphs face left; mirror when swimming right.
         fish.transform = direction > 0 ? CGAffineTransformMakeScale(-1.0, 1.0) : CGAffineTransformIdentity;
+
+        [self axs_dockfloat_emitBubblesForIndex:index inDock:dock amplitude:amplitude duration:duration];
     }
 }
 
-- (void)axs_dockfloat_resetTransforms {
-    for (UIView *dock in self.dockViews) {
-        dock.transform = CGAffineTransformIdentity;
-        for (UIView *icon in dock.subviews) {
-            icon.layer.transform = CATransform3DIdentity;
-        }
+// Rising colored bubbles spawn from the fish mouth every few seconds and are
+// removed by their own animation completion, keeping the dock layer bounded.
+- (void)axs_dockfloat_emitBubblesForIndex:(NSUInteger)index inDock:(UIView *)dock
+                                amplitude:(double)amplitude duration:(CFTimeInterval)duration {
+    self.fishNextBubble[index] = @([self.fishNextBubble[index] doubleValue] - duration);
+    if ([self.fishNextBubble[index] doubleValue] > 0) {
+        return;
     }
-    [self.dockViews removeAllObjects];
+    UILabel *fish = self.fishViews[index];
+    self.fishNextBubble[index] = @(0.6 + ((double)arc4random() / UINT32_MAX) * 1.4);
+
+    UIView *bubble = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 8, 8)];
+    // Mouth side follows swim direction.
+    double direction = [self.fishDirection[index] doubleValue];
+    CGFloat mouthX = direction > 0 ? CGRectGetMaxX(fish.frame) - 6.0
+                                  : CGRectGetMinX(fish.frame) + 6.0;
+    bubble.center = CGPointMake(mouthX, fish.frame.origin.y + 2.0);
+    bubble.layer.cornerRadius = 4.0;
+    bubble.layer.borderWidth = 1.0;
+    NSUInteger colorIndex = [self.bubbleCounter[index] integerValue];
+    self.bubbleCounter[index] = @(colorIndex + 1);
+    UIColor *color = axs_dockfloat_bubbleColor(colorIndex);
+    bubble.layer.borderColor = color.CGColor;
+    bubble.layer.backgroundColor = [color colorWithAlphaComponent:0.30].CGColor;
+    bubble.userInteractionEnabled = NO;
+    bubble.isAccessibilityElement = NO;
+    [dock addSubview:bubble];
+
+    CGFloat rise = (CGFloat)(16.0 + 5.0 * fmin(4.0, amplitude));
+    CGFloat drift = (CGFloat)(((double)arc4random() / UINT32_MAX - 0.5) * 16.0);
+    NSTimeInterval life = 1.1 + ((double)arc4random() / UINT32_MAX) * 0.5;
+    NSTimeInterval delay = ((double)arc4random() / UINT32_MAX) * 0.35;
+    CGPoint start = bubble.center;
+    [UIView animateWithDuration:life delay:delay options:UIViewAnimationOptionCurveEaseOut
+                     animations:^{
+        bubble.center = CGPointMake(start.x + drift, start.y - rise);
+        bubble.transform = CGAffineTransformMakeScale(1.6, 1.6);
+        bubble.alpha = 0.0;
+    } completion:^(BOOL removeFromSuperviewDidFinish) {
+        [bubble removeFromSuperview];
+    }];
+}
+
+- (void)axs_dockfloat_releaseFish {
     for (UILabel *fish in self.fishViews) {
         [fish removeFromSuperview];
     }
     [self.fishViews removeAllObjects];
     [self.fishX removeAllObjects];
     [self.fishDirection removeAllObjects];
+    [self.fishSpeed removeAllObjects];
+    [self.fishPhase removeAllObjects];
+    [self.fishLane removeAllObjects];
+    [self.fishNextBubble removeAllObjects];
+    [self.bubbleCounter removeAllObjects];
+}
+
+- (void)axs_dockfloat_releaseTransforms {
+    for (UIView *dock in self.dockViews) {
+        dock.transform = CGAffineTransformIdentity;
+        for (UIView *icon in dock.subviews) {
+            icon.layer.transform = CATransform3DIdentity;
+        }
+    }
+}
+
+- (void)axs_dockfloat_releaseAll {
+    [self axs_dockfloat_releaseTransforms];
+    [self.dockViews removeAllObjects];
+    [self axs_dockfloat_releaseFish];
     self.randomOffset = CGPointZero;
     self.randomTarget = CGPointZero;
     self.randomInterval = 0;

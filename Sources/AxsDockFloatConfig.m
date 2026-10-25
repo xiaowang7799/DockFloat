@@ -7,6 +7,17 @@
 @property (nonatomic, strong) dispatch_queue_t reloadQueue;
 @end
 
+static NSString *axs_dockfloat_modeKey(AxsDockFloatMode mode) {
+    switch (mode) {
+        case AxsDockFloatModeFloat:  return @"mode_float";
+        case AxsDockFloatModeRoll:   return @"mode_roll";
+        case AxsDockFloatModeShake:  return @"mode_shake";
+        case AxsDockFloatModeRandom: return @"mode_random";
+        case AxsDockFloatModeFish:   return @"mode_fish";
+    }
+    return @"mode_float";
+}
+
 static void axs_dockfloat_preferencesDidChange(CFNotificationCenterRef center, void *observer,
                                           CFStringRef name, const void *object, CFDictionaryRef info) {
     AxsDockFloatConfig *config = (__bridge AxsDockFloatConfig *)observer;
@@ -57,15 +68,18 @@ static void axs_dockfloat_preferencesDidChange(CFNotificationCenterRef center, v
     return [value isKindOfClass:[NSNumber class]] ? [value boolValue] : NO;
 }
 
-// Panels clamp these keys; readers still guard against corrupt files.
-- (AxsDockFloatMode)axs_dockfloat_mode {
-    id value = [self axs_dockfloat_valueForKey:@"mode" defaultValue:@(AxsDockFloatModeFloat)];
-    if (![value isKindOfClass:[NSNumber class]]) {
-        return AxsDockFloatModeFloat;
-    }
-    NSInteger mode = [value integerValue];
-    return (mode >= AxsDockFloatModeFloat && mode <= AxsDockFloatModeFish)
-        ? (AxsDockFloatMode)mode : AxsDockFloatModeFloat;
+- (BOOL)axs_dockfloat_isModeActive:(AxsDockFloatMode)mode {
+    id value = [self axs_dockfloat_valueForKey:axs_dockfloat_modeKey(mode) defaultValue:@(NO)];
+    return [value isKindOfClass:[NSNumber class]] ? [value boolValue] : NO;
+}
+
+// Panels clamp this key; readers still guard against corrupt files.
+- (NSInteger)axs_dockfloat_fishCount {
+    id value = [self axs_dockfloat_valueForKey:@"fish_count" defaultValue:@(3)];
+    if (![value isKindOfClass:[NSNumber class]]) return 3;
+    double count = [value doubleValue];
+    if (!isfinite(count)) return 3;
+    return (NSInteger)fmax(1.0, fmin(8.0, round(count)));
 }
 
 - (double)axs_dockfloat_amplitude {
@@ -73,7 +87,7 @@ static void axs_dockfloat_preferencesDidChange(CFNotificationCenterRef center, v
     if (![value isKindOfClass:[NSNumber class]]) return 1.0;
     double amplitude = [value doubleValue];
     if (!isfinite(amplitude)) return 1.0;
-    return fmax(0.2, fmin(3.0, amplitude));
+    return fmax(0.2, fmin(10.0, amplitude));
 }
 
 - (double)axs_dockfloat_period {
@@ -81,7 +95,7 @@ static void axs_dockfloat_preferencesDidChange(CFNotificationCenterRef center, v
     if (![value isKindOfClass:[NSNumber class]]) return 2.0;
     double period = [value doubleValue];
     if (!isfinite(period)) return 2.0;
-    return fmax(0.5, fmin(6.0, period));
+    return fmax(0.5, fmin(20.0, period));
 }
 
 - (void)dealloc {

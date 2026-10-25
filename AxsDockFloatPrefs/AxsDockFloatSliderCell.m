@@ -75,7 +75,10 @@
 }
 
 - (void)axs_dockfloat_updateLabel {
-    NSString *value = [NSString stringWithFormat:@"%.1f", self.slider.value];
+    BOOL integerMode = [[self.specifier propertyForKey:@"integer"] boolValue];
+    NSString *value = integerMode
+        ? [NSString stringWithFormat:@"%.0f", self.slider.value]
+        : [NSString stringWithFormat:@"%.1f", self.slider.value];
     self.valueLabel.text = value;
     self.slider.accessibilityValue = value;
 }

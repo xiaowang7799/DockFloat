@@ -19,7 +19,7 @@
         <dict>
             <key>cell</key><string>PSGroupCell</string>
             <key>label</key><string>动效</string>
-            <key>footerText</key><string>模式互斥：点亮任意一项即切换，无需重启桌面。</string>
+            <key>footerText</key><string>可同时开启多个动效，切换即时生效，无需重启桌面。</string>
         </dict>
         <dict>
             <key>cell</key><string>PSSwitchCell</string>
@@ -64,7 +64,7 @@
             <key>defaults</key><string>com.axs.dockfloat</string>
             <key>default</key><real>1.0</real>
             <key>min</key><real>0.2</real>
-            <key>max</key><real>3.0</real>
+            <key>max</key><real>10.0</real>
         </dict>
         <dict>
             <key>cell</key><string>PSTitleValueCell</string>
@@ -74,7 +74,18 @@
             <key>defaults</key><string>com.axs.dockfloat</string>
             <key>default</key><real>2.0</real>
             <key>min</key><real>0.5</real>
-            <key>max</key><real>6.0</real>
+            <key>max</key><real>20.0</real>
+        </dict>
+        <dict>
+            <key>cell</key><string>PSTitleValueCell</string>
+            <key>cellClass</key><string>AxsDockFloatSliderCell</string>
+            <key>label</key><string>鱼数量</string>
+            <key>key</key><string>fish_count</string>
+            <key>integer</key><true/>
+            <key>defaults</key><string>com.axs.dockfloat</string>
+            <key>default</key><real>3.0</real>
+            <key>min</key><real>1.0</real>
+            <key>max</key><real>8.0</real>
         </dict>
     </array>
 </dict>

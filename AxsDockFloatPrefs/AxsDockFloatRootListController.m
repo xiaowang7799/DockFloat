@@ -7,19 +7,6 @@
 @interface AxsDockFloatRootListController () <AxsDockFloatSliderCellHandler>
 @end
 
-// Mode switches are UI sugar over the single integer "mode" key the tweak reads:
-// turning one on writes its index; the others read back false automatically.
-static NSInteger axs_dockfloat_modeIndexForKey(NSString *key) {
-    static NSDictionary *indices;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        indices = @{@"mode_float": @(0), @"mode_roll": @(1), @"mode_shake": @(2),
-                    @"mode_random": @(3), @"mode_fish": @(4)};
-    });
-    NSNumber *index = indices[key];
-    return index ? index.integerValue : -1;
-}
-
 @implementation AxsDockFloatRootListController
 
 - (NSMutableArray *)specifiers {
@@ -46,33 +33,12 @@ static NSInteger axs_dockfloat_modeIndexForKey(NSString *key) {
 - (id)readPreferenceValue:(PSSpecifier *)specifier {
     NSString *key = [specifier propertyForKey:@"key"];
     if (key.length == 0) return nil;
-    NSInteger index = axs_dockfloat_modeIndexForKey(key);
-    if (index >= 0) {
-        id current = axs_dockfloat_readPreferences()[@"mode"];
-        NSInteger mode = [current isKindOfClass:[NSNumber class]] ? [current integerValue] : 0;
-        return @(mode == index);
-    }
     return axs_dockfloat_readPreferences()[key] ?: [specifier propertyForKey:@"default"];
 }
 
 - (void)setPreferenceValue:(id)value specifier:(PSSpecifier *)specifier {
     NSString *key = [specifier propertyForKey:@"key"];
     if (key.length == 0) return;
-    NSInteger index = axs_dockfloat_modeIndexForKey(key);
-    if (index >= 0) {
-        // Turning a mode off is a no-op: exactly one mode must stay selected.
-        if (![value boolValue]) {
-            [self reloadSpecifiers];
-            return;
-        }
-        NSError *modeError = nil;
-        if (!axs_dockfloat_writePreference(@"mode", @(index), &modeError)) {
-            [self axs_dockfloat_showSaveError:modeError];
-            return;
-        }
-        [self reloadSpecifiers];
-        return;
-    }
     NSError *error = nil;
     if (!axs_dockfloat_writePreference(key, value, &error)) {
         [self axs_dockfloat_showSaveError:error];

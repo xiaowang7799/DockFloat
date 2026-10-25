@@ -13,7 +13,9 @@ typedef NS_ENUM(NSInteger, AxsDockFloatMode) {
 @interface AxsDockFloatConfig : NSObject
 + (instancetype)axs_dockfloat_shared;
 - (BOOL)axs_dockfloat_isEnabled;
-- (AxsDockFloatMode)axs_dockfloat_mode;
+// Each mode has its own switch key; several may be active at once and stack.
+- (BOOL)axs_dockfloat_isModeActive:(AxsDockFloatMode)mode;
+- (NSInteger)axs_dockfloat_fishCount;
 - (double)axs_dockfloat_amplitude;
 - (double)axs_dockfloat_period;
 - (id)axs_dockfloat_valueForKey:(NSString *)key defaultValue:(id)defaultValue;
