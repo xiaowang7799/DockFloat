@@ -14,8 +14,31 @@ static NSString *axs_dockfloat_modeKey(AxsDockFloatMode mode) {
         case AxsDockFloatModeShake:  return @"mode_shake";
         case AxsDockFloatModeRandom: return @"mode_random";
         case AxsDockFloatModeFish:   return @"mode_fish";
+        case AxsDockFloatModeFirefly: return @"mode_firefly";
+        case AxsDockFloatModeBreath:  return @"mode_breath";
+        case AxsDockFloatModeStream:  return @"mode_stream";
     }
     return @"mode_float";
+}
+
+static NSString *axs_dockfloat_amplitudeKeyForMode(AxsDockFloatMode mode) {
+    switch (mode) {
+        case AxsDockFloatModeFloat:  return @"amplitude_float";
+        case AxsDockFloatModeRoll:   return @"amplitude_roll";
+        case AxsDockFloatModeShake:  return @"amplitude_shake";
+        case AxsDockFloatModeRandom: return @"amplitude_random";
+        default: return nil; // Fish/Firefly/Breath/Stream use the global keys
+    }
+}
+
+static NSString *axs_dockfloat_periodKeyForMode(AxsDockFloatMode mode) {
+    switch (mode) {
+        case AxsDockFloatModeFloat:  return @"period_float";
+        case AxsDockFloatModeRoll:   return @"period_roll";
+        case AxsDockFloatModeShake:  return @"period_shake";
+        case AxsDockFloatModeRandom: return @"period_random";
+        default: return nil;
+    }
 }
 
 static void axs_dockfloat_preferencesDidChange(CFNotificationCenterRef center, void *observer,
@@ -24,6 +47,16 @@ static void axs_dockfloat_preferencesDidChange(CFNotificationCenterRef center, v
     dispatch_async(config.reloadQueue, ^{
         [config axs_dockfloat_reload];
     });
+}
+
+// Default 8-species set, used as fallback when fish_species is not configured.
+static NSArray<NSString *> *axs_dockfloat_defaultSpecies(void) {
+    static NSArray<NSString *> *species;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        species = @[@"🐟", @"🐠", @"🐡", @"🦈", @"🐙", @"🦀", @"🐢", @"🐬"];
+    });
+    return species;
 }
 
 @implementation AxsDockFloatConfig
@@ -96,6 +129,157 @@ static void axs_dockfloat_preferencesDidChange(CFNotificationCenterRef center, v
     double period = [value doubleValue];
     if (!isfinite(period)) return 2.0;
     return fmax(0.5, fmin(20.0, period));
+}
+
+#pragma mark - Per-mode amplitude / period (#8)
+
+static double axs_dockfloat_readClampedDouble(id value, double defaultValue, double minimum, double maximum) {
+    if (![value isKindOfClass:[NSNumber class]]) return defaultValue;
+    double result = [value doubleValue];
+    if (!isfinite(result)) return defaultValue;
+    return fmax(minimum, fmin(maximum, result));
+}
+
+- (double)axs_dockfloat_amplitudeForMode:(AxsDockFloatMode)mode {
+    NSString *key = axs_dockfloat_amplitudeKeyForMode(mode);
+    if (key) {
+        id perModeValue = [self axs_dockfloat_valueForKey:key defaultValue:nil];
+        if (perModeValue) return axs_dockfloat_readClampedDouble(perModeValue, 1.0, 0.2, 10.0);
+    }
+    return [self axs_dockfloat_amplitude];
+}
+
+- (double)axs_dockfloat_periodForMode:(AxsDockFloatMode)mode {
+    NSString *key = axs_dockfloat_periodKeyForMode(mode);
+    if (key) {
+        id perModeValue = [self axs_dockfloat_valueForKey:key defaultValue:nil];
+        if (perModeValue) return axs_dockfloat_readClampedDouble(perModeValue, 2.0, 0.5, 20.0);
+    }
+    return [self axs_dockfloat_period];
+}
+
+#pragma mark - Spring physics (#1)
+
+- (BOOL)axs_dockfloat_useSpringPhysics {
+    id value = [self axs_dockfloat_valueForKey:@"use_spring" defaultValue:@(NO)];
+    return [value isKindOfClass:[NSNumber class]] ? [value boolValue] : NO;
+}
+
+#pragma mark - Bubble customization (#7)
+
+- (BOOL)axs_dockfloat_bubbleEnabled {
+    id value = [self axs_dockfloat_valueForKey:@"bubble_enabled" defaultValue:@(YES)];
+    return [value isKindOfClass:[NSNumber class]] ? [value boolValue] : YES;
+}
+
+- (AxsDockFloatBubbleColorMode)axs_dockfloat_bubbleColorMode {
+    id value = [self axs_dockfloat_valueForKey:@"bubble_color_mode" defaultValue:@(0)];
+    if (![value isKindOfClass:[NSNumber class]]) return AxsDockFloatBubbleColorRainbow;
+    NSInteger mode = [value integerValue];
+    if (mode < AxsDockFloatBubbleColorRainbow || mode > AxsDockFloatBubbleColorTransparent)
+        return AxsDockFloatBubbleColorRainbow;
+    return (AxsDockFloatBubbleColorMode)mode;
+}
+
+- (double)axs_dockfloat_bubbleSizeMin {
+    id value = [self axs_dockfloat_valueForKey:@"bubble_size_min" defaultValue:@(6.0)];
+    return axs_dockfloat_readClampedDouble(value, 6.0, 4.0, 16.0);
+}
+
+- (double)axs_dockfloat_bubbleSizeMax {
+    id value = [self axs_dockfloat_valueForKey:@"bubble_size_max" defaultValue:@(12.0)];
+    return axs_dockfloat_readClampedDouble(value, 12.0, 8.0, 24.0);
+}
+
+- (double)axs_dockfloat_bubbleDensity {
+    id value = [self axs_dockfloat_valueForKey:@"bubble_density" defaultValue:@(1.0)];
+    return axs_dockfloat_readClampedDouble(value, 1.0, 0.3, 3.0);
+}
+
+#pragma mark - Fish species (#6)
+
+- (NSArray<NSString *> *)axs_dockfloat_fishSpecies {
+    id value = [self axs_dockfloat_valueForKey:@"fish_species" defaultValue:nil];
+    // fish_species stored as JSON string array, e.g. '["🐟","🐠","🐡"]'
+    if ([value isKindOfClass:[NSString class]] && [(NSString *)value length] > 0) {
+        NSData *data = [(NSString *)value dataUsingEncoding:NSUTF8StringEncoding];
+        if (data) {
+            NSError *error = nil;
+            id parsed = [NSJSONSerialization JSONObjectWithData:data options:0 error:&error];
+            if ([parsed isKindOfClass:[NSArray class]] && [(NSArray *)parsed count] > 0) {
+                return parsed;
+            }
+        }
+    }
+    // Holiday override: inject holiday-specific species first.
+    NSDictionary *holiday = [self axs_dockfloat_holidayOverride];
+    NSArray *holidaySpecies = holiday[@"species"];
+    if ([holidaySpecies isKindOfClass:[NSArray class]] && holidaySpecies.count > 0) {
+        return holidaySpecies;
+    }
+    return axs_dockfloat_defaultSpecies();
+}
+
+#pragma mark - Holiday easter egg (#14)
+
+- (AxsDockFloatHolidayMode)axs_dockfloat_holidayMode {
+    id value = [self axs_dockfloat_valueForKey:@"holiday_mode" defaultValue:@(0)];
+    if (![value isKindOfClass:[NSNumber class]]) return AxsDockFloatHolidayAuto;
+    NSInteger mode = [value integerValue];
+    if (mode < AxsDockFloatHolidayAuto || mode > AxsDockFloatHolidayOff)
+        return AxsDockFloatHolidayAuto;
+    return (AxsDockFloatHolidayMode)mode;
+}
+
+- (NSDictionary *)axs_dockfloat_holidayOverride {
+    AxsDockFloatHolidayMode mode = [self axs_dockfloat_holidayMode];
+    if (mode == AxsDockFloatHolidayOff) return nil;
+
+    NSCalendar *calendar = [NSCalendar currentCalendar];
+    NSDateComponents *comps = [calendar components:NSCalendarUnitMonth | NSCalendarUnitDay fromDate:[NSDate date]];
+    NSInteger month = comps.month;
+    NSInteger day = comps.day;
+
+    BOOL forced = (mode == AxsDockFloatHolidayOn);
+
+    // Lunar New Year: ~Jan 21 – Feb 20 (Gregorian window approximation)
+    if (forced || (month == 1 && day >= 21) || (month == 2 && day <= 20)) {
+        return @{
+            @"species": @[@"🐟", @"🐠", @"🐡", @"🐉", @"🧧", @"🏮", @"🐲", @"✨"],
+            @"bubbleColor": @"gold",
+            @"overlay": [NSNull null],
+            @"particleHue": @(0.12), // gold hue
+        };
+    }
+    // Halloween: Oct 25 – Nov 2
+    if (forced || (month == 10 && day >= 25) || (month == 11 && day <= 2)) {
+        return @{
+            @"species": @[@"🦇", @"🕷️", @"👻", @"🎃", @"🕸️", @"💀", @"🦉", @"🐈‍⬛"],
+            @"bubbleColor": @"orange",
+            @"overlay": [NSNull null],
+            @"particleHue": @(0.09), // orange hue
+        };
+    }
+    // Christmas: Dec 20 – Dec 28
+    if (forced || (month == 12 && day >= 20 && day <= 28)) {
+        return @{
+            @"species": @[@"❄️", @"⭐", @"🎄", @"🦌", @"🎅", @"⛄", @"🔔", @"🎁"],
+            @"bubbleColor": @"white",
+            @"overlay": @"❄️",
+            @"particleHue": @(0.58), // icy blue hue
+        };
+    }
+    return nil;
+}
+
+#pragma mark - System state (#3, #4)
+
++ (BOOL)axs_dockfloat_isLowPowerMode {
+    return [[NSProcessInfo processInfo] isLowPowerModeEnabled];
+}
+
++ (BOOL)axs_dockfloat_isReduceMotion {
+    return UIAccessibilityIsReduceMotionEnabled();
 }
 
 - (void)dealloc {

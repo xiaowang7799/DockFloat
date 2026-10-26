@@ -16,4 +16,5 @@ AxsDockFloat_LIBRARIES = substrate
 include $(THEOS_MAKE_PATH)/tweak.mk
 
 SUBPROJECTS += AxsDockFloatPrefs
+SUBPROJECTS += AxsDockFloatFlipswitch
 include $(THEOS_MAKE_PATH)/aggregate.mk

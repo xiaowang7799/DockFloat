@@ -11,5 +11,6 @@
   "minimum_ios": "14.0",
   "preferences": true,
   "slider": true,
-  "github_actions": true
+  "github_actions": true,
+  "flipswitch": true
 }

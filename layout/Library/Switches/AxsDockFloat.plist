@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>defaults</key>
+	<string>com.axs.dockfloat</string>
+	<key>key</key>
+	<string>enabled</string>
+	<key>label</key>
+	<string>Dock浮动</string>
+	<key>alternate</key>
+	<true/>
+	<key>switchIdentifier</key>
+	<string>com.axs.dockfloat</string>
+	<key>thumbnail</key>
+	<string>/Library/PreferenceBundles/AxsDockFloatPrefs.bundle/icon@2x.png</string>
+</dict>
+</plist>

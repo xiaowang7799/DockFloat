@@ -14,6 +14,37 @@
 
 %end
 
+// #13: Click ripple — hook icon tap in dock to spawn ripple animation.
+// We hook touchesEnded on the icon view class used by the dock.
+// The class name varies across iOS versions, so we use %c to resolve it at runtime.
+%hook SBIconView
+- (void)touchesEnded:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
+    %orig;
+    UITouch *touch = [touches anyObject];
+    CGPoint point = [touch locationInView:self.superview];
+    // Determine if this icon is inside a dock list view.
+    UIView *dockView = nil;
+    UIView *parent = self.superview;
+    while (parent) {
+        NSString *className = NSStringFromClass([parent class]);
+        if ([className hasSuffix:@"IconListView"]
+            && ([className containsString:@"Dock"] || [className containsString:@"Tray"])) {
+            dockView = parent;
+            break;
+        }
+        parent = parent.superview;
+    }
+    if (dockView) {
+        CGPoint tapInDock = [touch locationInView:dockView];
+        [[NSNotificationCenter defaultCenter] postNotificationName:@"com.axs.dockfloat.icon-tapped"
+            object:nil userInfo:@{
+                @"dockView": dockView,
+                @"tapPoint": [NSValue valueWithCGPoint:tapInDock],
+            }];
+    }
+}
+%end
+
 %ctor {
     @autoreleasepool {
         // Readers load a snapshot; they never write default preferences.
